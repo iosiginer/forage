@@ -45,8 +45,35 @@ export function StartScreen({ onPlay, onResume, live }: Props) {
           </button>
         ) : null}
 
-        <p className="mt-4 text-xs text-fg-subtle">
-          Inspired by Pezzza's Work. Paint food, cut walls, place a rival nest.
+        <p className="mt-4 text-xs leading-relaxed text-fg-subtle">
+          Inspired by{" "}
+          <a
+            href="https://www.youtube.com/@PezzzasWork"
+            target="_blank"
+            rel="noreferrer"
+            className="text-fg-muted underline decoration-border-strong underline-offset-2 hover:text-fg"
+          >
+            Pezzza's Work
+          </a>
+          . Open-source original:{" "}
+          <a
+            href="https://github.com/johnBuffer/AntSimulator"
+            target="_blank"
+            rel="noreferrer"
+            className="text-fg-muted underline decoration-border-strong underline-offset-2 hover:text-fg"
+          >
+            johnBuffer/AntSimulator
+          </a>
+          . Ours:{" "}
+          <a
+            href="https://github.com/iosiginer/forage"
+            target="_blank"
+            rel="noreferrer"
+            className="text-fg-muted underline decoration-border-strong underline-offset-2 hover:text-fg"
+          >
+            iosiginer/forage
+          </a>
+          .
         </p>
       </div>
     </div>

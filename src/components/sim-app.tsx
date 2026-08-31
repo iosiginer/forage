@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { WORLD_H, WORLD_W } from "@/sim/constants";
+import { LAB_DEFAULTS, WORLD_H, WORLD_W, type LabParams } from "@/sim/constants";
 import { SimRenderer } from "@/sim/renderer";
 import { loadScenario, SCENARIO_HINT, type ScenarioId } from "@/sim/scenarios";
 import { Simulation, type SimStats, type Tool } from "@/sim/simulation";
 import { Hud } from "./hud";
+import { Lab } from "./lab";
 import { StartScreen } from "./start-screen";
 import { Toolbar } from "./toolbar";
 
@@ -41,6 +42,8 @@ export function SimApp() {
   const [brush, setBrush] = useState(18);
   const [scenario, setScenario] = useState<ScenarioId>("open");
   const [help, setHelp] = useState(true);
+  const [labOpen, setLabOpen] = useState(false);
+  const [lab, setLab] = useState<LabParams>({ ...LAB_DEFAULTS });
 
   const applyTool = useCallback((t: Tool) => {
     setTool(t);
@@ -65,6 +68,7 @@ export function SimApp() {
       if (!sim) return;
       const mobile = window.matchMedia("(max-width: 640px)").matches;
       loadScenario(sim, id, mobile);
+      sim.applyParams(lab);
       sim.tool = tool;
       sim.brush = brush;
       sim.showAnts = showAnts;
@@ -75,7 +79,7 @@ export function SimApp() {
       setIntro(false);
       setHelp(true);
     },
-    [tool, brush, showAnts, showMarkers, paused, speed],
+    [tool, brush, showAnts, showMarkers, paused, speed, lab],
   );
 
   useEffect(() => {
@@ -88,6 +92,8 @@ export function SimApp() {
     const rend = new SimRenderer();
     simRef.current = sim;
     rendRef.current = rend;
+    sim.applyParams(LAB_DEFAULTS);
+    (window as unknown as { __forage?: Simulation }).__forage = sim;
     const mobile = window.matchMedia("(max-width: 640px)").matches;
     loadScenario(sim, "open", mobile);
     sim.tool = "food";
@@ -150,6 +156,7 @@ export function SimApp() {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       simRef.current = null;
+      delete (window as unknown as { __forage?: Simulation }).__forage;
     };
   }, [fitCamera]);
 
@@ -173,6 +180,9 @@ export function SimApp() {
     const sim = simRef.current;
     if (sim) sim.brush = brush;
   }, [brush]);
+  useEffect(() => {
+    simRef.current?.applyParams(lab);
+  }, [lab]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -194,6 +204,7 @@ export function SimApp() {
         KeyH: () => applyTool("pan"),
         KeyN: () => applyTool("nest"),
         KeyR: () => boot(scenario),
+        KeyL: () => setLabOpen((v) => !v),
         Digit1: () => setSpeed(1),
         Digit2: () => setSpeed(2),
         Digit3: () => setSpeed(4),
@@ -348,6 +359,12 @@ export function SimApp() {
             brush={brush}
             onTool={applyTool}
             onBrush={setBrush}
+          />
+          <Lab
+            open={labOpen}
+            params={lab}
+            onOpen={setLabOpen}
+            onChange={setLab}
           />
           {help ? (
             <p className="pointer-events-none absolute bottom-20 left-1/2 z-10 hidden max-w-sm -translate-x-1/2 text-center text-xs text-fg-muted md:bottom-6 md:block">

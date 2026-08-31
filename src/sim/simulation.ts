@@ -1,14 +1,12 @@
 import {
   ANT_COST,
-  CELL,
   CELL_COUNT,
-  DETECT_DIST,
   DIR_NOISE,
   DIR_PERIOD,
+  FIGHT_DAMAGE,
   FOOD_PER_CELL,
   HIT_LIMIT,
-  MARKER_DECAY,
-  MARKER_INTENSITY,
+  LAB_DEFAULTS,
   MARKER_PERIOD,
   MAX_ANTS,
   MAX_AUTONOMY,
@@ -16,12 +14,11 @@ import {
   MODE_TO_FOOD,
   MODE_TO_HOME,
   MODE_TO_HOME_EMPTY,
-  MOVE_SPEED,
   NEST_RADIUS,
-  SAMPLE_COUNT,
   SAMPLE_RANGE,
   WORLD_H,
   WORLD_W,
+  type LabParams,
 } from "./constants";
 import { mulberry32, randRange } from "./rng";
 import { World } from "./world";
@@ -80,10 +77,40 @@ export class Simulation {
   showMarkers = true;
   brush = 18;
   tool: Tool = "food";
-  rng = mulberry32(0xC0FFEE);
+  rng = mulberry32(0xc0ffee);
+
+  markerIntensity = LAB_DEFAULTS.markerIntensity;
+  markerDecay = LAB_DEFAULTS.markerDecay;
+  detectDist = LAB_DEFAULTS.detectDist;
+  sampleCount = LAB_DEFAULTS.sampleCount;
+  moveSpeed = LAB_DEFAULTS.moveSpeed;
+  evaporateMul = LAB_DEFAULTS.evaporateMul;
+  fights = LAB_DEFAULTS.fights;
 
   constructor() {
     this.searchT.fill(0);
+  }
+
+  getParams(): LabParams {
+    return {
+      markerIntensity: this.markerIntensity,
+      markerDecay: this.markerDecay,
+      detectDist: this.detectDist,
+      sampleCount: this.sampleCount,
+      moveSpeed: this.moveSpeed,
+      evaporateMul: this.evaporateMul,
+      fights: this.fights,
+    };
+  }
+
+  applyParams(p: LabParams) {
+    this.markerIntensity = p.markerIntensity;
+    this.markerDecay = p.markerDecay;
+    this.detectDist = p.detectDist;
+    this.sampleCount = p.sampleCount;
+    this.moveSpeed = p.moveSpeed;
+    this.evaporateMul = p.evaporateMul;
+    this.fights = p.fights;
   }
 
   reset(seed = (Math.random() * 1e9) | 0) {
@@ -159,7 +186,7 @@ export class Simulation {
   private tick(dt: number) {
     this.time += dt;
     this.world.occupancy.fill(-1);
-    this.world.evaporate(dt, this.colonies.length);
+    this.world.evaporate(dt * this.evaporateMul, this.colonies.length);
 
     const n = MAX_ANTS;
     for (let i = 0; i < n; i++) {
@@ -204,17 +231,41 @@ export class Simulation {
     }
 
     this.move(i, dt);
+    if (!this.alive[i]) return;
     this.checkNest(i, nest);
 
     const ci = this.world.cellAt(this.x[i], this.y[i]);
-    if (ci >= 0) this.world.occupancy[col * CELL_COUNT + ci] = i;
+    if (ci >= 0) {
+      if (this.fights) {
+        for (let c = 0; c < this.colonies.length; c++) {
+          if (c === col) continue;
+          const other = this.world.occupancy[c * CELL_COUNT + ci];
+          if (other >= 0 && this.alive[other]) {
+            this.melee(i, other);
+            if (!this.alive[i]) return;
+          }
+        }
+      }
+      this.world.occupancy[col * CELL_COUNT + ci] = i;
+    }
+  }
+
+  private melee(a: number, b: number) {
+    this.autonomy[a] += FIGHT_DAMAGE;
+    this.autonomy[b] += FIGHT_DAMAGE;
+    this.enemy[a] = 1;
+    this.enemy[b] = 1;
+    this.angle[a] += 1.15;
+    this.angle[b] -= 1.15;
+    if (this.autonomy[a] > MAX_AUTONOMY) this.kill(a);
+    if (this.autonomy[b] > MAX_AUTONOMY) this.kill(b);
   }
 
   private move(i: number, dt: number) {
     const a = this.angle[i];
     const vx = Math.cos(a);
     const vy = Math.sin(a);
-    const dist = MOVE_SPEED * dt;
+    const dist = this.moveSpeed * dt;
     const nx = this.x[i] + vx * dist;
     const ny = this.y[i] + vy * dist;
     const ci = this.world.cellAt(nx, ny);
@@ -288,7 +339,7 @@ export class Simulation {
     const ci = this.world.cellAt(this.x[i], this.y[i]);
     if (ci < 0) return;
     const col = this.colony[i];
-    const intensity = MARKER_INTENSITY * Math.exp(-MARKER_DECAY * this.clock[i]);
+    const intensity = this.markerIntensity * Math.exp(-this.markerDecay * this.clock[i]);
     if (this.mode[i] === MODE_TO_FOOD) {
       this.world.addMarker(col, ci, false, intensity);
     } else if (this.mode[i] === MODE_TO_HOME) {
@@ -311,11 +362,12 @@ export class Simulation {
     let maxRep = 0;
     let maxCell = -1;
     let found = false;
+    const samples = this.sampleCount | 0;
 
-    for (let s = 0; s < SAMPLE_COUNT; s++) {
+    for (let s = 0; s < samples; s++) {
       const delta = (this.rng() * 2 - 1) * SAMPLE_RANGE;
       const sa = current + delta;
-      const dist = this.rng() * DETECT_DIST;
+      const dist = this.rng() * this.detectDist;
       const dx = Math.cos(sa);
       const dy = Math.sin(sa);
       const sx = px + dist * dx;
@@ -337,7 +389,15 @@ export class Simulation {
         break;
       }
 
-      if (this.hasEnemy(idx, col)) this.enemy[i] = 1;
+      if (this.hasEnemy(idx, col)) {
+        this.enemy[i] = 1;
+        if (this.fights && this.rng() < 0.12) {
+          bestDx = dx;
+          bestDy = dy;
+          found = true;
+          break;
+        }
+      }
 
       const rep = this.world.repellent[col * CELL_COUNT + idx];
       if (rep > maxRep) maxRep = rep;
@@ -357,7 +417,7 @@ export class Simulation {
     }
 
     if (!lookingHome && maxRep > 0 && !found) {
-      if (this.rng() < 0.3 * (1 - Math.min(1, maxI / MARKER_INTENSITY))) {
+      if (this.rng() < 0.3 * (1 - Math.min(1, maxI / this.markerIntensity))) {
         this.angle[i] += this.rng() * Math.PI * 2;
         this.searchT[i] = 4;
         return;
@@ -445,4 +505,3 @@ export class Simulation {
     };
   }
 }
-

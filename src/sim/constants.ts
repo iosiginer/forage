@@ -24,10 +24,31 @@ export const MAX_AUTONOMY = 140;
 export const ANT_COST = 4;
 export const FOOD_PER_CELL = 28;
 export const HIT_LIMIT = 5;
+export const FIGHT_DAMAGE = 28;
 
 export const MODE_TO_FOOD = 0;
 export const MODE_TO_HOME = 1;
 export const MODE_TO_HOME_EMPTY = 2;
+
+export type LabParams = {
+  markerIntensity: number;
+  markerDecay: number;
+  detectDist: number;
+  sampleCount: number;
+  moveSpeed: number;
+  evaporateMul: number;
+  fights: boolean;
+};
+
+export const LAB_DEFAULTS: LabParams = {
+  markerIntensity: MARKER_INTENSITY,
+  markerDecay: MARKER_DECAY,
+  detectDist: DETECT_DIST,
+  sampleCount: SAMPLE_COUNT,
+  moveSpeed: MOVE_SPEED,
+  evaporateMul: 1,
+  fights: true,
+};
 
 export const COLONY_COLORS = [
   { r: 224, g: 112, b: 96, hex: "#e07060", name: "Coral" },

@@ -8,7 +8,6 @@ import {
   GRID_H,
   GRID_W,
   GROUND,
-  MARKER_INTENSITY,
   MAX_ANTS,
   MODE_TO_HOME,
   MODE_TO_HOME_EMPTY,
@@ -93,7 +92,7 @@ export class SimRenderer {
     const { world } = sim;
     const data = this.pixels.data;
     const nCol = sim.colonies.length;
-    const inv = 1 / MARKER_INTENSITY;
+    const inv = 1 / Math.max(1, sim.markerIntensity);
     data.fill(0);
 
     for (let i = 0; i < CELL_COUNT; i++) {
